@@ -1,0 +1,70 @@
+apiVersion: fogatlas.fbk.eu/v1alpha1
+kind: FADepl
+metadata:
+  name: simple-app
+  finalizers:
+  - finalizer.fogatlas.fbk.eu
+spec:
+  algorithm: Silly
+  externalendpoints:
+    - cam1
+  microservices:
+    - name: driver
+      regions:
+        - regionrequired: "003-003"
+      deployment:
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: driver
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: driver
+          template:
+            metadata:
+              labels:
+                name: driver
+            spec:
+              containers:
+                - name: driver
+                  image: "nginx:latest"
+                  resources:
+                    requests:
+                      memory: 100Mi
+                      cpu: 100m
+    - name: processor
+      regions:
+        - regionrequired: "002-002"
+      deployment:
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: processor
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: processor
+          template:
+            metadata:
+              labels:
+                name: processor
+            spec:
+              containers:
+                - name: processor
+                  image: "nginx:latest"
+                  resources:
+                    requests:
+                      memory: 400Mi
+                      cpu: 100m
+  dataflows:
+    - bandwidthrequired: 5000000
+      latency: 20
+      sourceid: cam1
+      destinationid: driver
+    - bandwidthrequired: 100000
+      latency: 500
+      sourceid: driver
+      destinationid: processor

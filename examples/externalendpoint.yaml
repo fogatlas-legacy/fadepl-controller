@@ -1,0 +1,51 @@
+apiVersion: fogatlas.fbk.eu/v1alpha1
+kind: ExternalEndpoint
+metadata:
+  name: cam1
+spec:
+  id: cam1
+  name: cam1
+  type: camera
+  description: some-Description
+  ipaddress: 10.10.10.10
+  location: "46.0656737,11.1540153"
+  regionid: 003-003
+---
+apiVersion: fogatlas.fbk.eu/v1alpha1
+kind: ExternalEndpoint
+metadata:
+  name: cam2
+spec:
+  id: cam2
+  name: cam2
+  type: camera
+  description: some-Description
+  ipaddress: 10.10.10.11
+  location: "46.0656737,11.1540153"
+  regionid: 003-003
+---
+apiVersion: fogatlas.fbk.eu/v1alpha1
+kind: ExternalEndpoint
+metadata:
+  name: sens1
+spec:
+  id: sens1
+  name: sens1
+  type: sensor
+  description: some-Description
+  ipaddress: 10.10.10.12
+  location: "46.1093567,11.089455"
+  regionid: 001-001
+---
+apiVersion: fogatlas.fbk.eu/v1alpha1
+kind: ExternalEndpoint
+metadata:
+  name: broker1
+spec:
+  id: broker1
+  name: broker1
+  type: service
+  description: some-Description
+  ipaddress: 10.10.10.13
+  location: "46.0706631,11.1134498"
+  regionid: 002-002

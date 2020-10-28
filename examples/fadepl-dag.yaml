@@ -1,0 +1,166 @@
+apiVersion: fogatlas.fbk.eu/v1alpha1
+kind: FADepl
+metadata:
+  name: simple-app
+  finalizers:
+  - finalizer.fogatlas.fbk.eu
+spec:
+  algorithm: DAG
+  externalendpoints:
+    - cam1
+    - cam2
+    - broker1
+    - sens1
+  microservices:
+    - name: processor
+      deployment:
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: processor
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: processor
+          template:
+            metadata:
+              labels:
+                name: processor
+            spec:
+              containers:
+                - name: processor
+                  image: "nginx:latest"
+                  resources:
+                    requests:
+                      memory: 400Mi
+                      cpu: 100m
+    - name: driver1
+      regions:
+        - regionrequired: "003-003"
+      deployment:
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: driver1
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: driver1
+          template:
+            metadata:
+              labels:
+                name: driver1
+            spec:
+              containers:
+                - name: driver1
+                  image: "nginx:latest"
+                  resources:
+                    requests:
+                      memory: 100Mi
+                      cpu: 100m
+    - name: driver2
+      regions:
+        - regionrequired: "003-003"
+      deployment:
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: driver2
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: driver2
+          template:
+            metadata:
+              labels:
+                name: driver2
+            spec:
+              containers:
+                - name: driver2
+                  image: "nginx:latest"
+                  resources:
+                    requests:
+                      memory: 100Mi
+                      cpu: 100m
+    - name: driver3
+      deployment:
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: driver3
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: driver3
+          template:
+            metadata:
+              labels:
+                name: driver3
+            spec:
+              containers:
+                - name: driver3
+                  image: "nginx:latest"
+                  resources:
+                    requests:
+                      memory: 100Mi
+                      cpu: 100m
+    - name: analytics
+      deployment:
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        metadata:
+          name: analytics
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: analytics
+          template:
+            metadata:
+              labels:
+                name: analytics
+            spec:
+              containers:
+                - name: analytics
+                  image: "nginx:latest"
+                  resources:
+                    requests:
+                      memory: 400Mi
+                      cpu: 100m
+  dataflows:
+    - bandwidthrequired: 5000000
+      latency: 20
+      sourceid: cam1
+      destinationid: driver1
+    - bandwidthrequired: 5000000
+      latency: 20
+      sourceid: cam2
+      destinationid: driver2
+    - bandwidthrequired: 5000000
+      latency: 20
+      sourceid: broker1
+      destinationid: driver3
+    - bandwidthrequired: 100000
+      latency: 500
+      sourceid: driver1
+      destinationid: processor
+    - bandwidthrequired: 100000
+      latency: 500
+      sourceid: driver2
+      destinationid: processor
+    - bandwidthrequired: 100000
+      latency: 500
+      sourceid: driver3
+      destinationid: processor
+    - bandwidthrequired: 100000
+      latency: 500
+      sourceid: processor
+      destinationid: analytics
+    - bandwidthrequired: 100000
+      latency: 500
+      sourceid: analytics
+      destinationid: sens1

@@ -1,0 +1,38 @@
+apiVersion: fogatlas.fbk.eu/v1alpha1
+kind: Link
+metadata:
+  name: link1
+spec:
+  id: link1
+  endpointa: 003-003
+  endpointb: 001-001
+  bwpeak: 10000000
+  bwmeasured: 10000000
+  latency: 100
+  status: up
+---
+  apiVersion: fogatlas.fbk.eu/v1alpha1
+  kind: Link
+  metadata:
+    name: link2
+  spec:
+    id: link2
+    endpointa: 002-002
+    endpointb: 001-001
+    bwpeak: 10000000
+    bwmeasured: 10000000
+    latency: 100
+    status: up
+---
+    apiVersion: fogatlas.fbk.eu/v1alpha1
+    kind: Link
+    metadata:
+      name: link3
+    spec:
+      id: link3
+      endpointa: 003-003
+      endpointb: 002-002
+      bwpeak: 100000000
+      bwmeasured: 100000000
+      latency: 10
+      status: up

@@ -1,0 +1,24 @@
+@startuml
+skinparam monochrome true
+
+component analytics
+component processor
+component driver1
+component driver2
+component driver3
+component sensor1 <<ExternalEndpoint>>
+component cam1 <<ExternalEndpoint>>
+component cam2 <<ExternalEndpoint>>
+component broker <<ExternalEndpoint>>
+
+
+cam1 --> driver1
+cam2 --> driver2
+broker --> driver3
+driver1 --> processor
+driver2 --> processor
+driver3 --> processor
+processor --> analytics
+analytics --> sensor1
+
+@enduml

@@ -1,0 +1,41 @@
+apiVersion: fogatlas.fbk.eu/v1alpha1
+kind: Region
+metadata:
+  name: cloud
+spec:
+  id: 001-001
+  name: cloud
+  description: "Cloud region"
+  location: "46.1093567,11.089455"
+  tier: 0
+  type: "nodes"
+  cpumodel: "Intel i7"
+  cpu2mips: 50000
+---
+apiVersion: fogatlas.fbk.eu/v1alpha1
+kind: Region
+metadata:
+  name: trento
+spec:
+  id: 002-002
+  name: trento
+  description: "Trento region"
+  location: "46.0706631,11.1134498"
+  tier: 1
+  type: "nodes"
+  cpumodel: "Intel i5"
+  cpu2mips: 30000
+---
+apiVersion: fogatlas.fbk.eu/v1alpha1
+kind: Region
+metadata:
+  name: povo
+spec:
+  id: 003-003
+  name: povo
+  description: "Povo region"
+  location: "46.0656737,11.1540153"
+  tier: 2
+  type: "nodes"
+  cpumodel: "Intel Atom"
+  cpu2mips: 5000

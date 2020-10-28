@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fadepl-controller
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fadepl
+  template:
+    metadata:
+      labels:
+        app: fadepl
+    spec:
+      serviceAccountName: foggy
+      nodeSelector:
+        tier: "0"
+      containers:
+        - name: fa-controller
+          image: <put here the image url>
+          imagePullPolicy: Always
+          env:
+          - name: "LOGLEVEL"
+            value: "trace"

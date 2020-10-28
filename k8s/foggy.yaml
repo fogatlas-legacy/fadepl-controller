@@ -1,0 +1,87 @@
+# Service account for foggy components
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: foggy
+  namespace: default
+---
+# Cluster role defining permissions over API
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: foggy
+rules:
+# This rule is used by the monitor
+- apiGroups: [""]
+  resources:
+  - nodes
+  - pods
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+# This rule is used by the orchestrator to deploy microservices
+- apiGroups: ["extensions", "apps"]
+  resources:
+  - deployments
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - update
+  - delete
+# This rule is used by the orchestrator to deploy ancillary_resources
+- apiGroups: [""]
+  resources:
+  - services
+  - configmaps
+  - secrets
+  - statefulsets
+  - cronjobs
+  - daemonsets
+  - events
+  verbs:
+  - get
+  - list
+  - create
+  - patch
+  - update
+  - delete
+# This rule is used for handling CRD resources
+- apiGroups: ["fogatlas.fbk.eu"]
+  resources:
+  - fadepls
+  - fadepls/status
+  - fedfaapps
+  - regions
+  - links
+  - links/status
+  - externalendpoints
+  - dynamicnodes
+  verbs:
+  - get
+  - list
+  - create
+  - patch
+  - update
+  - delete
+  - watch
+---
+# Binding associating serviceaccount with role
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: foggy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: foggy
+subjects:
+- kind: ServiceAccount
+  name: foggy
+  namespace: default

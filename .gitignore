@@ -1,0 +1,8 @@
+# Ignore temporary files
+*~
+._*
+*.DS_Store
+\#*#
+
+# Ignore IDE tmp files
+*.iml
