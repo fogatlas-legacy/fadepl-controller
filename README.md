@@ -150,16 +150,19 @@ If this is the case, the controller logs a warning and ignores the features.
 
 ### Prerequisites
 
+**Note**: FogAtlas has been tested in the following environment:
+* Ubuntu 18.04
+* Kuberntes v1.15.x (but should work also with v1.19.x)
+
 The following prerequisites apply to the usage of the FADepl controller:
-1. Set up a k8s cluster (>= 1.15) with more than one worker
+1. Set up a k8s cluster (>= v1.15) with more than one worker
 1. Create the CRDs (Regions, Links, ExternalEndpoints, FADepl). Check out the _crd-client-go_
-repository and look at the [How to install CRDs](https://github.com/fogatlas/crd-client-go)
+repository and look at the [How to install CRDs](https://github.com/fogatlas/crd-client-go#how-to-install-crds)
 section
 1. Create requested RBAC on the cluster. You can find an example in
 [this file](./k8s/foggy.yaml). Do the following:
    ```sh
-   cd k8s
-   kubectl apply -f foggy.yaml
+   kubectl apply -f k8s/foggy.yaml
    ```
 1. Create a docker container image for the FADepl controller (see Dockerfile): the
 _makefile_ provided can help doing this (see makefile targets).
@@ -169,10 +172,9 @@ _makefile_ provided can help doing this (see makefile targets).
 1. Define the infrastructural topology of your cluster in terms of Regions, Links and
 ExternalEndpoints. You can find an example [here](./examples):
    ```sh
-   cd examples
-   kubectl apply -f region.yaml
-   kubectl apply -f link.yaml
-   kubectl apply -f externalendpoint.yaml
+   kubectl apply -f examples/region.yaml
+   kubectl apply -f examples/link.yaml
+   kubectl apply -f examples/externalendpoint.yaml
    ```
 1. Label the worker nodes in order to group them into Region, according to the defined topology.
 Of course coherence is requested between this labeling and the definition of Regions/Links etc.
@@ -187,26 +189,43 @@ Label to be set are:
     # cloud has always tier=0; first level is tier=1 and so on towards the edge
     kubectl label nodes <your-node-name> tier=<region tier>
     ```
-1. Customize the file _./k8s/fadepl-controller.yaml_ according to your needs: for example
+1. Customize the file _./k8s/fadepl-controller.yaml.template_ according to your needs: for example
 replace the image with the url of your docker registry (using the makefile you can replace it
-with the right syntax and content).
+with the right syntax and content). Once done change its name to _./k8s/fadepl-controller.yaml_
 Beware that if you are using a private docker registry, you need also to create a secret
 in k8s and associate it to the service account. Deploy the controller with the following command:
    ```sh
-   cd k8s
-   kubectl apply -f  fadepl-controller.yaml
+   kubectl apply -f  k8s/fadepl-controller.yaml
    ```
 1. Create a FADepl resource in order to deploy an application. You can find an example
 [here](./examples/fadepl-silly.yaml) (in the example file we put just two nginx images.
 	Change them as you like):
    ```sh
-   kubectl docs/examples/fadepl_silly.yaml
+   kubectl apply -f examples/fadepl-silly.yaml
    ```
-1. See what happens:
+1. See what happens. You should see something like this where _.reg.003-003_ and
+   _.reg.002-002_ are the identifiers of the regions where the deployments/pods have 
+	 been placed:
    ```sh
    kubectl get fadepls
+   ------------------------------------------------------------------------
+	 NAME         AGE
+	 simple-app   9s
+   ------------------------------------------------------------------------
+
    kubectl get deployments
-   kubectl get pods
+	 ------------------------------------------------------------------------
+	 NAME                    READY   UP-TO-DATE   AVAILABLE   AGE
+	 driver.reg.003-003      0/1     1            0           5s
+	 processor.reg.002-002   0/1     1            0           5s
+	 ------------------------------------------------------------------------
+
+	 kubectl get pods
+	 ------------------------------------------------------------------------
+	 NAME                                    READY   STATUS    RESTARTS   AGE
+	 driver.reg.003-003-6d6d858d87-wrfb6     1/1     Running   0          25s
+	 processor.reg.002-002-bfc5c77bd-tbmrp   1/1     Running   0          25s
+	 ------------------------------------------------------------------------
    ```
 1. Delete the FADepl:
    ```sh

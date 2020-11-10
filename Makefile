@@ -22,7 +22,7 @@ push:                    ## Push the image
 fadepl-controller.yaml:  ## Update the yaml for deploying fadepl-controller
 	@echo "Udating k8s/$@"
 ifndef REGISTRY
-	sed -i -e 's=<put here the image url>=$(IMAGE):$(TAG)=g' k8s/$@
+	@sed -e 's=<put here the image url>=$(IMAGE):$(TAG)=g' k8s/$@.template > k8s/$@
 else
-	sed -i -e 's=<put here the image url>=$(REGISTRY)/$(IMAGE):$(TAG)=g' k8s/$@
-endif	
+	@sed -e 's=<put here the image url>=$(REGISTRY)/$(IMAGE):$(TAG)=g' k8s/$@.template > k8s/$@
+endif
