@@ -84,7 +84,8 @@ type PlacementAlgorithm interface {
 ### How different models of CPU are handled
 
 **Assumption:** what follows works in the assumption that each region is homogeneous
-in terms of CPU models.
+in terms of CPU model/architecture and that the algorithm used is DAG (with Silly algorithm it
+doesn't work).
 
 Since in fog environment we can have different models of CPU installed, the user has
 the possibility to express the amount of CPU in terms of both MIPS or "k8s Quantity".
@@ -94,7 +95,7 @@ for her application and the algorithm computes the placement according to the MI
 for each region. Once placement is computed, then MIPS are converted in the corresponding
 "k8s Quantity" of the region where the microservice will be placed.
 
-Note that if both MIPS and "k8s Quantity" are specified, MIPS value has the priority.
+Note that if both MIPS and "k8s Quantity" are specified, MIPS value takes the precedence.
 
 ### Handling GPU
 
@@ -204,7 +205,7 @@ in k8s and associate it to the service account. Deploy the controller with the f
    kubectl apply -f examples/fadepl-silly.yaml
    ```
 1. See what happens. You should see something like this where _.reg.003-003_ and
-   _.reg.002-002_ are the identifiers of the regions where the deployments/pods have 
+   _.reg.002-002_ are the identifiers of the regions where the deployments/pods have
 	 been placed:
    ```sh
    kubectl get fadepls

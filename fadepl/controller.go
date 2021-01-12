@@ -396,11 +396,16 @@ func (c *Controller) syncHandler(key string) error {
 					// If CPU resources are specified as MIPS, convert them to Quantities.
 					// We always assume to have one container per Pod. If more than one, we skip
 					// the usage of MIPSRequired.
+					// Similarly this work only of CPU2MIPS is set. If equal to 0, we skip it
 					if m.MIPSRequired > 0 {
 						if len(depl.Spec.Template.Spec.Containers) == 1 {
-							// Do not know why using Cpu() it doesn't work. We need to create a new Quantity
-							newCpu := int64(m.MIPSRequired / r.CPU2MIPSMilli)
-							depl.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(newCpu, resource.DecimalSI)
+							if r.CPU2MIPSMilli == 0 {
+								log.Warnf("MIPSRequired used but CPU2MIPS conversion factor not set. Did you select the right algorithm? Ignoring it.")
+							} else {
+								// Do not know why using Cpu() it doesn't work. We need to create a new Quantity
+								newCpu := int64(m.MIPSRequired / r.CPU2MIPSMilli)
+								depl.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(newCpu, resource.DecimalSI)
+							}
 						} else {
 							log.Warnf("MIPSRequired used with more than one container per pod. Ignoring it.")
 						}
