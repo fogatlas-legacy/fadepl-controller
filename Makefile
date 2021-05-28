@@ -1,7 +1,14 @@
+REGISTRY := your-registry-here
 ACCOUNT := fogatlas
 REPO := fadepl-controller
 TAG := latest
 IMAGE := $(ACCOUNT)/$(REPO)
+
+
+export PROJECT_ROOT=./
+export CRD_FOLDER=../crd-client-go
+
+packages:=$(shell go list ./... | grep -v /vendor/)
 
 
 help:                    ## Show help message
@@ -13,16 +20,30 @@ help:                    ## Show help message
 	@printf "\tTAG: the tag of the image\n"
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/##//'
 
-build:                   ## Build the image
-	@docker build -t $(IMAGE):$(TAG) .
+registry-login:         ## Login to the registry
+	docker login $(REGISTRY)
 
-push:                    ## Push the image
-	@docker push $(IMAGE):$(TAG)
+build:                  ## Build the image
+	@docker build -f Dockerfile -t $(REGISTRY)/$(IMAGE):$(TAG) .
 
-fadepl-controller.yaml:  ## Update the yaml for deploying fadepl-controller
-	@echo "Udating k8s/$@"
-ifndef REGISTRY
-	@sed -e 's=<put here the image url>=$(IMAGE):$(TAG)=g' k8s/$@.template > k8s/$@
-else
-	@sed -e 's=<put here the image url>=$(REGISTRY)/$(IMAGE):$(TAG)=g' k8s/$@.template > k8s/$@
-endif
+push:                   ## Push the image
+	@docker push $(REGISTRY)/$(IMAGE):$(TAG)
+
+deploy:
+	@$(PROJECT_ROOT)/scripts/deploy.sh
+
+clean:
+	kubectl delete -f "$(PROJECT_ROOT)/examples/fadepl-silly.yaml"
+	kubectl delete -f "$(PROJECT_ROOT)/k8s/foggy.yaml"
+	kubectl delete -f "$(CRD_FOLDER)/crd-definitions/fogatlas.fbk.eu_regions.yaml"
+	kubectl delete -f "$(CRD_FOLDER)/crd-definitions/fogatlas.fbk.eu_links.yaml"
+	kubectl delete -f "$(CRD_FOLDER)/crd-definitions/fogatlas.fbk.eu_externalendpoints.yaml"
+	kubectl delete -f "$(CRD_FOLDER)/crd-definitions/fogatlas.fbk.eu_fadepls.yaml"
+	kubectl delete namespace fogatlas
+
+unit:
+	@ go fmt $(packages)
+	@ go vet $(packages)
+	@ golint $(packages)
+	@ shadow $(packages)
+	@ go test -cover $(packages)

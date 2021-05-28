@@ -11,7 +11,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-type SillyAlgorithm struct {
+// Algorithm contains algorithm's name, flags and helper objects
+type Algorithm struct {
 	name            string
 	kubeclientset   kubernetes.Interface
 	faDeplclientset clientset.Interface
@@ -21,7 +22,7 @@ type SillyAlgorithm struct {
 //
 // Init function
 //
-func (p *SillyAlgorithm) Init(name string, kubeclientset kubernetes.Interface, faDeplclientset clientset.Interface) {
+func (p *Algorithm) Init(name string, kubeclientset kubernetes.Interface, faDeplclientset clientset.Interface) {
 	p.name = name
 	p.kubeclientset = kubeclientset
 	p.faDeplclientset = faDeplclientset
@@ -31,13 +32,13 @@ func (p *SillyAlgorithm) Init(name string, kubeclientset kubernetes.Interface, f
 //
 // CalculatePlacement method
 //
-func (p *SillyAlgorithm) CalculatePlacement(depl *fadeplv1alpha1.FADepl) (err error) {
+func (p *Algorithm) CalculatePlacement(depl *fadeplv1alpha1.FADepl) (err error) {
 	defer trace("CalculatePlacement()")()
 	log.Infof("Going to calculate the placement of %s with algorithm %s", depl.Name, p.name)
 
 	if p.initialized == false {
 		log.Errorf("SillyAlgorithm not intitialized. Unable to proceed.")
-		return fmt.Errorf("SillyAlgorithm not intitialized. Unable to proceed.")
+		return fmt.Errorf("SillyAlgorithm not intitialized. Unable to proceed")
 	}
 
 	fadeplmicroservices := depl.Spec.Microservices
@@ -64,7 +65,7 @@ func (p *SillyAlgorithm) CalculatePlacement(depl *fadeplv1alpha1.FADepl) (err er
 //
 // CalculateUpdate method
 //
-func (p *SillyAlgorithm) CalculateUpdate(fadepl *fadeplv1alpha1.FADepl) (err error) {
+func (p *Algorithm) CalculateUpdate(fadepl *fadeplv1alpha1.FADepl) (err error) {
 	defer trace("CalculateUpdate()")()
 
 	// Just return

@@ -29,6 +29,7 @@ import (
 	"k8s.io/sample-controller/pkg/signals"
 )
 
+// Options struct contains the cmd line parameters
 type Options struct {
 	Kubeconfig string `long:"kubeconfig" description:"absolute path to the kubeconfig file."`
 	MasterURL  string `long:"master" description:"The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster."`

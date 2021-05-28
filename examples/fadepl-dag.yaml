@@ -14,7 +14,7 @@ spec:
   microservices:
     - name: processor
       deployment:
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: processor
@@ -39,7 +39,7 @@ spec:
       regions:
         - regionrequired: "003-003"
       deployment:
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: driver1
@@ -64,7 +64,7 @@ spec:
       regions:
         - regionrequired: "003-003"
       deployment:
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: driver2
@@ -87,7 +87,7 @@ spec:
                       cpu: 100m
     - name: driver3
       deployment:
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: driver3
@@ -110,7 +110,7 @@ spec:
                       cpu: 100m
     - name: analytics
       deployment:
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: analytics

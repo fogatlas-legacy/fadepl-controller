@@ -26,6 +26,7 @@ limitations under the License.
 package fadepl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -73,6 +74,7 @@ const (
 	MessageResourceSynced = "FADepl synced successfully"
 )
 
+// PlacementAlgorithm provides the specification of a placement algorithm
 type PlacementAlgorithm interface {
 	Init(name string, kubeclientset kubernetes.Interface, faDeplclientset clientset.Interface)
 	CalculatePlacement(fadepl *fadeplv1alpha1.FADepl) (err error)
@@ -103,6 +105,9 @@ type Controller struct {
 	algoMap  map[string]PlacementAlgorithm
 }
 
+//
+// RegisterAlgoImpl registers an algorithm to the controller
+//
 func (c *Controller) RegisterAlgoImpl(p map[string]PlacementAlgorithm) {
 	c.algoMap = p
 }
@@ -121,7 +126,7 @@ func NewController(
 	// logged for fadepl types.
 	utilruntime.Must(fadeplscheme.AddToScheme(scheme.Scheme))
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeclientset.CoreV1().Events("")})
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeclientset.CoreV1().Events("default")})
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
 
 	controller := &Controller{
@@ -152,9 +157,8 @@ func NewController(
 				if err == nil && err1 == nil {
 					if string(specOld) == string(specNew) {
 						return
-					} else {
-						newFADepl.Status.CurrentStatus = fadeplv1alpha1.Changed
 					}
+					newFADepl.Status.CurrentStatus = fadeplv1alpha1.Changed
 				}
 			}
 			controller.enqueueFADepl(new)
@@ -233,6 +237,9 @@ func (c *Controller) runWorker() {
 func (c *Controller) processNextWorkItem() bool {
 	obj, shutdown := c.workqueue.Get()
 
+	before := time.Now()
+	log.Infof("<PERF> Before processEvent: time is %v", before.UnixNano())
+
 	if shutdown {
 		return false
 	}
@@ -274,6 +281,10 @@ func (c *Controller) processNextWorkItem() bool {
 		log.Info("Successfully synced: ", key)
 		return nil
 	}(obj)
+
+	after := time.Now()
+	log.Infof("<PERF> After processEvent: time is %v", after.UnixNano())
+	log.Infof("<PERF> Elapsed time for processEvent is %v", after.Sub(before))
 
 	if err != nil {
 		utilruntime.HandleError(err)
@@ -318,183 +329,191 @@ func (c *Controller) syncHandler(key string) error {
 			c.handleCleanup(fadepl)
 			faDeplCopy := fadepl.DeepCopy()
 			faDeplCopy.ObjectMeta.Finalizers = nil
-			_, err := c.faDeplclientset.FogatlasV1alpha1().FADepls(fadepl.Namespace).Update(faDeplCopy)
-			return err
+			_, err1 := c.faDeplclientset.FogatlasV1alpha1().FADepls(fadepl.Namespace).Update(context.TODO(), faDeplCopy, metav1.UpdateOptions{})
+			return err1
 		}
 	}
 	if fadepl.Status.CurrentStatus == fadeplv1alpha1.Synced || fadepl.Status.CurrentStatus == fadeplv1alpha1.Failed {
 		log.Trace("No need to do anything. Returning ...")
 		return nil
+	}
+	// Just for tracing purposes, print the fadepl
+	str, err := json.Marshal(fadepl)
+	if err != nil {
+		log.Errorf("Error marshalling fadepl: (%s)", err.Error())
 	} else {
-		// Just for tracing purposes, print the fadepl
-		str, err := json.Marshal(fadepl)
-		if err != nil {
-			log.Errorf("Error marshalling fadepl: (%s)", err.Error())
+		log.Tracef("Received following fadepl (%s)", str)
+	}
+	// If it is an update of FADepl then call handleUpdate() function that in turn calls
+	// algo.CalculateUpdate()
+	// For example you could need to do some operations before re-placement
+	if fadepl.Status.CurrentStatus == fadeplv1alpha1.Changed {
+		c.handleUpdate(fadepl)
+	}
+	// Handle placement of the fadepl.
+	before := time.Now()
+	log.Infof("<PERF> Before handlePlacement: time is %v", before.UnixNano())
+	err = c.handlePlacement(fadepl)
+	after := time.Now()
+	log.Infof("<PERF> After handlePlacement: time is %v", after.UnixNano())
+	log.Infof("<PERF> Elapsed time for handlePlacement is %v", after.Sub(before))
+	if err != nil {
+		fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
+		// We choose to absorb the error here as the worker would requeue the
+		// resource otherwise. Instead, the next time the resource is updated
+		// the resource will be queued again.
+		err = nil
+	}
+	for _, m := range fadepl.Spec.Microservices {
+		if fadepl.Status.CurrentStatus == fadeplv1alpha1.Failed {
+			break
+		}
+		pl := c.getPlacement(m.Name, fadepl)
+		if pl == nil {
+			fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
+			log.Errorf("Unable to find placement for ms (%s).", m.Name)
+			break
 		} else {
-			log.Tracef("Received following fadepl (%s)", str)
+			//lists the regions involved in this FADepl
+			var involvedRegions []string
+			var dName string //name of this deployment
+			for _, r := range pl.Regions {
+				involvedRegions = append(involvedRegions, r.RegionSelected)
+				nodeSelectorLabels := make(map[string]string)
+				inputSelectorLabels := m.Deployment.Spec.Template.Spec.NodeSelector
+				if inputSelectorLabels != nil {
+					for k, v := range inputSelectorLabels {
+						nodeSelectorLabels[k] = v
+					}
+				}
+				nodeSelectorLabels["region"] = r.RegionSelected
+				depl := m.Deployment.DeepCopy()
+				labels := make(map[string]string)
+				inputMetaLabels := m.Deployment.ObjectMeta.Labels
+				if inputMetaLabels != nil {
+					for k, v := range inputMetaLabels {
+						labels[k] = v
+					}
+				}
+				labels["fadepl"] = fadepl.Name
+				depl.ObjectMeta.SetLabels(labels)
+				depl.Spec.Template.Spec.NodeSelector = nodeSelectorLabels
+				if r.Replicas > 0 {
+					depl.Spec.Replicas = &r.Replicas
+				}
+				//Assuming just one container per pod in case of overriding
+				if r.Image != "" {
+					if len(depl.Spec.Template.Spec.Containers) == 1 {
+						depl.Spec.Template.Spec.Containers[0].Image = r.Image
+					} else {
+						log.Warnf("Image override with more than one container per pod. Ignoring it")
+					}
+				}
+				// If CPU resources are specified as MIPS, convert them to Quantities.
+				// We always assume to have one container per Pod. If more than one, we skip
+				// the usage of MIPSRequired.
+				// Similarly this work only of CPU2MIPS is set. If equal to 0, we skip it
+				if m.MIPSRequired.CmpInt64(0) == 1 {
+					if len(depl.Spec.Template.Spec.Containers) == 1 {
+						if r.CPU2MIPSMilli == 0 {
+							log.Warnf("MIPSRequired used but CPU2MIPS conversion factor not set. Did you select the right algorithm? Ignoring it.")
+						} else {
+							newCPU := int64(m.MIPSRequired.Value() / r.CPU2MIPSMilli)
+							depl.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(newCPU, resource.DecimalSI)
+						}
+					} else {
+						log.Warnf("MIPSRequired used with more than one container per pod. Ignoring it.")
+					}
+				}
+				references := []metav1.OwnerReference{*metav1.NewControllerRef(fadepl, fadeplv1alpha1.SchemeGroupVersion.WithKind("FADepl"))}
+				depl.SetOwnerReferences(references)
+
+				// Get the deployment with the name specified in FADepl.spec with RegionSelected as suffix
+				deplName := m.Name + deploymentNameSeparator + r.RegionSelected
+				depl.Name = deplName
+				dName = m.Name
+				deployment, err1 := c.deploymentsLister.Deployments(fadepl.Namespace).Get(depl.Name)
+				// If the resource doesn't exist, we'll create it
+				if errors.IsNotFound(err1) {
+					log.Trace("Creating new deployment")
+					before := time.Now()
+					log.Infof("<PERF> Before createDeployment: time is %v", before.UnixNano())
+					deployment, err1 = c.kubeclientset.AppsV1().Deployments(fadepl.Namespace).Create(context.TODO(), depl, metav1.CreateOptions{})
+					after := time.Now()
+					log.Infof("<PERF> After createDeployment: time is %v", after.UnixNano())
+					log.Infof("<PERF> Elapsed time for createDeployment is %v", after.Sub(before))
+				} else {
+					log.Trace("Updating deployment")
+					deployment, err1 = c.kubeclientset.AppsV1().Deployments(fadepl.Namespace).Update(context.TODO(), depl, metav1.UpdateOptions{})
+				}
+
+				// If an error occurs during Get/Create, we won't requeue the item. User
+				// has to re-submit it
+				if err1 != nil {
+					log.Errorf("Unable to create/update deployment (%s)", err1)
+					fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
+					break
+				}
+
+				// If the Deployment is not controlled by this FADepl resource, we should log
+				// a warning to the event recorder.
+				if !metav1.IsControlledBy(deployment, fadepl) {
+					fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
+					msg := fmt.Sprintf(MessageResourceExists, deployment.Name)
+					c.recorder.Event(fadepl, corev1.EventTypeWarning, ErrResourceExists, msg)
+					log.Errorf("Deployment is not controlled by this FADepl (%s)", msg)
+					break
+				}
+			}
+			// Check if there are deployments, related with this fadepl, but not involved in this update that should be purged.
+			label := "fadepl=" + fadepl.Name
+			deployments, err1 := c.kubeclientset.AppsV1().Deployments(fadepl.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: label})
+			if err1 != nil {
+				fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
+				log.Errorf("Error when searching for deployments with label (%s) (%s)", label, err1)
+			} else {
+				for _, d := range deployments.Items {
+					//pieces[0] is ms name, pieces[1] is region name
+					pieces := strings.Split(d.Name, deploymentNameSeparator)
+					if pieces[0] != dName {
+						continue
+					}
+					found := false
+					for _, k := range involvedRegions {
+						if strings.Contains(d.Name, k) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						log.Infof("Found a deployment to be purged (%s)", d.Name)
+						c.kubeclientset.AppsV1().Deployments(fadepl.Namespace).Delete(context.TODO(), d.Name, metav1.DeleteOptions{})
+					}
+				}
+			}
 		}
-		// If it is an update of FADepl then call handleUpdate() function that in turn calls
-		// algo.CalculateUpdate()
-		// For example you could need to do some operations before re-placement
-		if fadepl.Status.CurrentStatus == fadeplv1alpha1.Changed {
-			c.handleUpdate(fadepl)
-		}
-		// Handle placement of the fadepl.
-		err = c.handlePlacement(fadepl)
+	}
+	if fadepl.Status.CurrentStatus != fadeplv1alpha1.Failed {
+		fadepl.Status.CurrentStatus = fadeplv1alpha1.Synced
+	}
+
+	// Finally, we update the status block of the Link resources to keep into account the
+	// allocated bandwidth and the status block of the FADepl resource to reflect the
+	// current state of the world
+	if fadepl.Status.CurrentStatus == fadeplv1alpha1.Synced {
+		err = c.updateLinksStatus(fadepl, true)
 		if err != nil {
 			fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
-			// We choose to absorb the error here as the worker would requeue the
-			// resource otherwise. Instead, the next time the resource is updated
-			// the resource will be queued again.
-			err = nil
+			log.Errorf("Error updating links (%s)", err)
 		}
-		for _, m := range fadepl.Spec.Microservices {
-			if fadepl.Status.CurrentStatus == fadeplv1alpha1.Failed {
-				break
-			}
-			pl := c.getPlacement(m.Name, fadepl)
-			if pl == nil {
-				fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
-				log.Errorf("Unable to find placement for ms (%s).", m.Name)
-				break
-			} else {
-				//lists the regions involved in this FADepl
-				var involvedRegions []string
-				var dName string //name of this deployment
-				for _, r := range pl.Regions {
-					involvedRegions = append(involvedRegions, r.RegionSelected)
-					nodeSelectorLabels := make(map[string]string)
-					inputSelectorLabels := m.Deployment.Spec.Template.Spec.NodeSelector
-					if inputSelectorLabels != nil {
-						for k, v := range inputSelectorLabels {
-							nodeSelectorLabels[k] = v
-						}
-					}
-					nodeSelectorLabels["region"] = r.RegionSelected
-					depl := m.Deployment.DeepCopy()
-					labels := make(map[string]string)
-					inputMetaLabels := m.Deployment.ObjectMeta.Labels
-					if inputMetaLabels != nil {
-						for k, v := range inputMetaLabels {
-							labels[k] = v
-						}
-					}
-					labels["fadepl"] = fadepl.Name
-					depl.ObjectMeta.SetLabels(labels)
-					depl.Spec.Template.Spec.NodeSelector = nodeSelectorLabels
-					if r.Replicas > 0 {
-						depl.Spec.Replicas = &r.Replicas
-					}
-					//Assuming just one container per pod in case of overriding
-					if r.Image != "" {
-						if len(depl.Spec.Template.Spec.Containers) == 1 {
-							depl.Spec.Template.Spec.Containers[0].Image = r.Image
-						} else {
-							log.Warnf("Image override with more than one container per pod. Ignoring it")
-						}
-					}
-					// If CPU resources are specified as MIPS, convert them to Quantities.
-					// We always assume to have one container per Pod. If more than one, we skip
-					// the usage of MIPSRequired.
-					// Similarly this work only of CPU2MIPS is set. If equal to 0, we skip it
-					if m.MIPSRequired > 0 {
-						if len(depl.Spec.Template.Spec.Containers) == 1 {
-							if r.CPU2MIPSMilli == 0 {
-								log.Warnf("MIPSRequired used but CPU2MIPS conversion factor not set. Did you select the right algorithm? Ignoring it.")
-							} else {
-								// Do not know why using Cpu() it doesn't work. We need to create a new Quantity
-								newCpu := int64(m.MIPSRequired / r.CPU2MIPSMilli)
-								depl.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(newCpu, resource.DecimalSI)
-							}
-						} else {
-							log.Warnf("MIPSRequired used with more than one container per pod. Ignoring it.")
-						}
-					}
-					references := []metav1.OwnerReference{*metav1.NewControllerRef(fadepl, fadeplv1alpha1.SchemeGroupVersion.WithKind("FADepl"))}
-					depl.SetOwnerReferences(references)
-
-					// Get the deployment with the name specified in FADepl.spec with RegionSelected as suffix
-					deplName := m.Name + deploymentNameSeparator + r.RegionSelected
-					depl.Name = deplName
-					dName = m.Name
-					deployment, err := c.deploymentsLister.Deployments(fadepl.Namespace).Get(depl.Name)
-					// If the resource doesn't exist, we'll create it
-					if errors.IsNotFound(err) {
-						log.Trace("Creating new deployment")
-						deployment, err = c.kubeclientset.AppsV1().Deployments(fadepl.Namespace).Create(depl)
-					} else {
-						log.Trace("Updating deployment")
-						deployment, err = c.kubeclientset.AppsV1().Deployments(fadepl.Namespace).Update(depl)
-					}
-
-					// If an error occurs during Get/Create, we won't requeue the item. User
-					// has to re-submit it
-					if err != nil {
-						log.Errorf("Unable to create/update deployment (%s)", err)
-						fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
-						break
-					}
-
-					// If the Deployment is not controlled by this FADepl resource, we should log
-					// a warning to the event recorder.
-					if !metav1.IsControlledBy(deployment, fadepl) {
-						fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
-						msg := fmt.Sprintf(MessageResourceExists, deployment.Name)
-						c.recorder.Event(fadepl, corev1.EventTypeWarning, ErrResourceExists, msg)
-						log.Errorf("Deployment is not controlled by this FADepl (%s)", msg)
-						break
-					}
-				}
-				// Check if there are deployments, related with this fadepl, but not involved in this update that should be purged.
-				label := "fadepl=" + fadepl.Name
-				deployments, err := c.kubeclientset.AppsV1().Deployments(fadepl.Namespace).List(metav1.ListOptions{LabelSelector: label})
-				if err != nil {
-					fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
-					log.Errorf("Error when searching for deployments with label (%s) (%s)", label, err)
-				} else {
-					for _, d := range deployments.Items {
-						//pieces[0] is ms name, pieces[1] is region name
-						pieces := strings.Split(d.Name, deploymentNameSeparator)
-						if pieces[0] != dName {
-							continue
-						}
-						found := false
-						for _, k := range involvedRegions {
-							if strings.Contains(d.Name, k) {
-								found = true
-								break
-							}
-						}
-						if !found {
-							log.Infof("Found a deployment to be purged (%s)", d.Name)
-							c.kubeclientset.AppsV1().Deployments(fadepl.Namespace).Delete(d.Name, &metav1.DeleteOptions{})
-						}
-					}
-				}
-			}
-		}
-		if fadepl.Status.CurrentStatus != fadeplv1alpha1.Failed {
-			fadepl.Status.CurrentStatus = fadeplv1alpha1.Synced
-		}
-
-		// Finally, we update the status block of the Link resources to keep into account the
-		// allocated bandwidth and the status block of the FADepl resource to reflect the
-		// current state of the world
-		if fadepl.Status.CurrentStatus == fadeplv1alpha1.Synced {
-			err = c.updateLinksStatus(fadepl, true)
-			if err != nil {
-				fadepl.Status.CurrentStatus = fadeplv1alpha1.Failed
-				log.Errorf("Error updating links (%s)", err)
-			}
-		}
-		err = c.updateFADeplStatus(fadepl)
-		// Apparently we have to slow down the process in order to be sure that the status
-		// is correctly updated.
-		// [20200424] Guess it is no more needed. Commenting it out.
-		//time.Sleep(200 * time.Millisecond)
-		if err != nil {
-			return err
-		}
+	}
+	err = c.updateFADeplStatus(fadepl)
+	// Apparently we have to slow down the process in order to be sure that the status
+	// is correctly updated.
+	// [20200424] Guess it is no more needed. Commenting it out.
+	//time.Sleep(200 * time.Millisecond)
+	if err != nil {
+		return err
 	}
 
 	c.recorder.Event(fadepl, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
@@ -513,7 +532,7 @@ func (c *Controller) updateFADeplStatus(fadepl *fadeplv1alpha1.FADepl) error {
 	// we must use Update instead of UpdateStatus to update the Status block of the FaDepl resource.
 	// UpdateStatus will not allow changes to the Spec of the resource,
 	// which is ideal for ensuring nothing other than resource status has been updated.
-	_, err := c.faDeplclientset.FogatlasV1alpha1().FADepls(fadepl.Namespace).UpdateStatus(faDeplCopy)
+	_, err := c.faDeplclientset.FogatlasV1alpha1().FADepls(fadepl.Namespace).UpdateStatus(context.TODO(), faDeplCopy, metav1.UpdateOptions{})
 	if err != nil {
 		log.Errorf("Error updating FADepl status (%s)", err)
 	}
@@ -527,7 +546,7 @@ func (c *Controller) updateLinksStatus(fadepl *fadeplv1alpha1.FADepl, deploy boo
 	// NEVER modify objects from the store. It's a read-only, local cache.
 	// You can use DeepCopy() to make a deep copy of original object and modify this copy
 	// Or create a copy manually for better performance
-	links, err := c.faDeplclientset.FogatlasV1alpha1().Links("default").List(metav1.ListOptions{})
+	links, err := c.faDeplclientset.FogatlasV1alpha1().Links("default").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		log.Errorf("Error: (%s)", err.Error())
 		return err
@@ -535,16 +554,16 @@ func (c *Controller) updateLinksStatus(fadepl *fadeplv1alpha1.FADepl, deploy boo
 	var lCopy *fadeplv1alpha1.Link
 	for _, link := range links.Items {
 		for _, lo := range fadepl.Status.LinksOccupancy {
-			if lo.LinkId == link.Spec.Id {
+			if lo.LinkID == link.Spec.ID {
 				if deploy == true && lo.IsChanged == true {
-					link.Status.BwAllocated += lo.BwAllocated
+					link.Status.BwAllocated.Add(lo.BwAllocated)
 				} else if deploy == false || lo.IsChanged == false {
-					link.Status.BwAllocated -= lo.BwAllocated
-					lo.BwAllocated = 0
+					link.Status.BwAllocated.Sub(lo.BwAllocated)
+					lo.BwAllocated.Set(0)
 				}
 				lo.IsChanged = false
 				lCopy = link.DeepCopy()
-				_, err := c.faDeplclientset.FogatlasV1alpha1().Links("default").UpdateStatus(lCopy)
+				_, err := c.faDeplclientset.FogatlasV1alpha1().Links("default").UpdateStatus(context.TODO(), lCopy, metav1.UpdateOptions{})
 				if err != nil {
 					log.Errorf("Error updating Link status (%s)", err)
 					return err

@@ -132,7 +132,7 @@ func registerAlgorithms(controller *Controller,
 	kubeclientset kubernetes.Interface,
 	faDeplclientset clientset.Interface) {
 	m := make(map[string]PlacementAlgorithm)
-	sillyAlgo := new(silly.SillyAlgorithm)
+	sillyAlgo := new(silly.Algorithm)
 	sillyAlgo.Init("Silly", kubeclientset, faDeplclientset)
 	m["Silly"] = sillyAlgo
 	controller.RegisterAlgoImpl(m)

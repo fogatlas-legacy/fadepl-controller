@@ -14,7 +14,7 @@ import (
 )
 
 var _ = Describe("Silly", func() {
-	var sillyAlgo SillyAlgorithm
+	var sillyAlgo Algorithm
 	BeforeEach(func() {
 		log.SetLevel(log.ErrorLevel)
 		sillyAlgo.Init("Silly", nil, nil)
@@ -41,12 +41,12 @@ var _ = Describe("Silly", func() {
 //
 // newDeployment function
 //
-func newDeployment(name string, replicas *int32, cpu int64, ram int64) apps.Deployment {
+func newDeployment(name string, replicas *int32, cpuRequested string, memoryRequested string) apps.Deployment {
 	selector := make(map[string]string)
 	selector["name"] = name
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
-	resourceList[v1.ResourceCPU] = *resource.NewMilliQuantity(cpu, resource.DecimalSI)
-	resourceList[v1.ResourceMemory] = *resource.NewQuantity(ram, resource.DecimalSI)
+	resourceList[v1.ResourceCPU] = resource.MustParse(cpuRequested)
+	resourceList[v1.ResourceMemory] = resource.MustParse(memoryRequested)
 	d := apps.Deployment{
 		TypeMeta: metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"},
 		ObjectMeta: metav1.ObjectMeta{
@@ -105,7 +105,7 @@ func newFADeplSilly(name string, replicas *int32) *fadeplv1alpha1.FADepl {
 							RegionRequired: "003-003",
 						},
 					},
-					Deployment: newDeployment("driver", replicas, 100, 100*1000*1000),
+					Deployment: newDeployment("driver", replicas, "100m", "100M"),
 				},
 				{
 					Name: "processor",
@@ -114,21 +114,21 @@ func newFADeplSilly(name string, replicas *int32) *fadeplv1alpha1.FADepl {
 							RegionRequired: "002-002",
 						},
 					},
-					Deployment: newDeployment("processor", replicas, 100, 400*1000*1000),
+					Deployment: newDeployment("processor", replicas, "100m", "400M"),
 				},
 			},
 			DataFlows: []*fadeplv1alpha1.FADeplDataFlow{
 				{
-					BandwidthRequired: 5000000,
-					LatencyRequired:   20,
-					SourceId:          "cam1",
-					DestinationId:     "driver",
+					BandwidthRequired: resource.MustParse("5M"),
+					LatencyRequired:   resource.MustParse("20"),
+					SourceID:          "cam1",
+					DestinationID:     "driver",
 				},
 				{
-					BandwidthRequired: 100000,
-					LatencyRequired:   500,
-					SourceId:          "driver",
-					DestinationId:     "processor",
+					BandwidthRequired: resource.MustParse("100k"),
+					LatencyRequired:   resource.MustParse("500"),
+					SourceID:          "driver",
+					DestinationID:     "processor",
 				},
 			},
 		},

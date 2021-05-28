@@ -1,4 +1,6 @@
 # Ignore temporary files
+*credentials.yaml
+fadepl-controller.yaml
 *~
 ._*
 *.DS_Store

@@ -13,7 +13,7 @@ spec:
       regions:
         - regionrequired: "003-003"
       deployment:
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: driver
@@ -38,7 +38,7 @@ spec:
       regions:
         - regionrequired: "002-002"
       deployment:
-        apiVersion: extensions/v1beta1
+        apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: processor
