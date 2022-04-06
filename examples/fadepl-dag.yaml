@@ -132,35 +132,35 @@ spec:
                       memory: 400Mi
                       cpu: 100m
   dataflows:
-    - bandwidthrequired: 5000000
+    - bandwidthrequired: 5M
       latency: 20
       sourceid: cam1
       destinationid: driver1
-    - bandwidthrequired: 5000000
+    - bandwidthrequired: 5M
       latency: 20
       sourceid: cam2
       destinationid: driver2
-    - bandwidthrequired: 5000000
+    - bandwidthrequired: 5M
       latency: 20
       sourceid: broker1
       destinationid: driver3
-    - bandwidthrequired: 100000
+    - bandwidthrequired: 100k
       latency: 500
       sourceid: driver1
       destinationid: processor
-    - bandwidthrequired: 100000
+    - bandwidthrequired: 100k
       latency: 500
       sourceid: driver2
       destinationid: processor
-    - bandwidthrequired: 100000
+    - bandwidthrequired: 100k
       latency: 500
       sourceid: driver3
       destinationid: processor
-    - bandwidthrequired: 100000
+    - bandwidthrequired: 100k
       latency: 500
       sourceid: processor
       destinationid: analytics
-    - bandwidthrequired: 100000
+    - bandwidthrequired: 100k
       latency: 500
       sourceid: analytics
       destinationid: sens1

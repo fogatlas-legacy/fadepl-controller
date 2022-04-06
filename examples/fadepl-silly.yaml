@@ -60,11 +60,11 @@ spec:
                       memory: 400Mi
                       cpu: 100m
   dataflows:
-    - bandwidthrequired: 5000000
+    - bandwidthrequired: 5M
       latency: 20
       sourceid: cam1
       destinationid: driver
-    - bandwidthrequired: 100000
+    - bandwidthrequired: 100k
       latency: 500
       sourceid: driver
       destinationid: processor

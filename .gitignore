@@ -8,3 +8,4 @@ fadepl-controller.yaml
 
 # Ignore IDE tmp files
 *.iml
+tmp

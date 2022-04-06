@@ -510,9 +510,10 @@ func expectedPlacementDAG() fadeplv1alpha1.FADeplStatus {
 		},
 		LinksOccupancy: []*fadeplv1alpha1.FALinkOccupancy{
 			{
-				LinkID:      "link3",
-				BwAllocated: resource.MustParse("200k"),
-				IsChanged:   false,
+				LinkID:          "link3",
+				BwAllocated:     resource.MustParse("200k"),
+				PrevBwAllocated: resource.MustParse("0"),
+				IsChanged:       false,
 			},
 		},
 		CurrentStatus: 1,
@@ -669,9 +670,10 @@ func expectedPlacementDAGLeaf() fadeplv1alpha1.FADeplStatus {
 		},
 		LinksOccupancy: []*fadeplv1alpha1.FALinkOccupancy{
 			{
-				LinkID:      "link3",
-				BwAllocated: resource.MustParse("200k"),
-				IsChanged:   false,
+				LinkID:          "link3",
+				BwAllocated:     resource.MustParse("200k"),
+				PrevBwAllocated: resource.MustParse("0"),
+				IsChanged:       false,
 			},
 		},
 		CurrentStatus: 1,

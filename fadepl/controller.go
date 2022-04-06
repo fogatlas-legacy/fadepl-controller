@@ -515,8 +515,12 @@ func (c *Controller) syncHandler(key string) error {
 	if err != nil {
 		return err
 	}
-
-	c.recorder.Event(fadepl, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
+	
+	if fadepl.Status.CurrentStatus == fadeplv1alpha1.Synced {
+		c.recorder.Event(fadepl, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
+	} else {
+		c.recorder.Event(fadepl, corev1.EventTypeWarning, "Failed", "FADepl is in failed status")
+	}
 	return nil
 }
 
@@ -556,6 +560,7 @@ func (c *Controller) updateLinksStatus(fadepl *fadeplv1alpha1.FADepl, deploy boo
 		for _, lo := range fadepl.Status.LinksOccupancy {
 			if lo.LinkID == link.Spec.ID {
 				if deploy == true && lo.IsChanged == true {
+					link.Status.BwAllocated.Sub(lo.PrevBwAllocated)
 					link.Status.BwAllocated.Add(lo.BwAllocated)
 				} else if deploy == false || lo.IsChanged == false {
 					link.Status.BwAllocated.Sub(lo.BwAllocated)
